@@ -1,4 +1,6 @@
 """BGEN reader implementation (using bgen_reader)"""
+from __future__ import annotations
+
 import logging
 import tempfile
 import time
@@ -19,7 +21,6 @@ import dask
 import dask.array as da
 import dask.dataframe as dd
 import numpy as np
-import pandas as pd
 import xarray as xr
 import zarr
 from cbgen import bgen_file, bgen_metafile
@@ -157,7 +158,10 @@ def _split_alleles(allele_ids: bytes) -> List[bytes]:
     return alleles
 
 
-def _read_metafile_partition(path: Path, partition: int) -> pd.DataFrame:
+def _read_metafile_partition(path: Path, partition: int) -> pandas.DataFrame:
+    # Delayed import to reduce sgkit startup time
+    import pandas
+
     with bgen_metafile(path) as mf:
         part = mf.read_partition(partition)
     v = part.variants
@@ -171,7 +175,7 @@ def _read_metafile_partition(path: Path, partition: int) -> pd.DataFrame:
         "a2": allele_ids[:, 1],
         "offset": v.offset,
     }
-    return pd.DataFrame(data).astype(METAFILE_DTYPE)
+    return pandas.DataFrame(data).astype(METAFILE_DTYPE)
 
 
 def read_metafile(path: PathType) -> dd.DataFrame:
@@ -188,9 +192,12 @@ def read_metafile(path: PathType) -> dd.DataFrame:
         return dd.from_delayed(dfs, meta=meta, divisions=divisions, verify_meta=False)
 
 
-def read_samples(path: PathType) -> pd.DataFrame:
+def read_samples(path: PathType) -> pandas.DataFrame:
     """Read BGEN .sample file"""
-    df = pd.read_csv(path, sep=" ", skiprows=[1], usecols=[0])
+    # Delayed import to reduce sgkit startup time
+    import pandas
+
+    df = pandas.read_csv(path, sep=" ", skiprows=[1], usecols=[0])
     df.columns = ["sample_id"]
     return df
 

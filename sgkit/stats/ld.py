@@ -5,7 +5,6 @@ import dask
 import dask.array as da
 import dask.dataframe as dd
 import numpy as np
-import pandas as pd
 from dask.dataframe import DataFrame
 from xarray import Dataset
 
@@ -267,6 +266,8 @@ def _ld_matrix(
     threshold: float = np.nan,
     scores: Optional[ArrayLike] = None,
 ) -> ArrayLike:
+    # Delayed import to reduce sgkit startup time
+    import pandas
 
     x = np.asarray(x)
 
@@ -294,7 +295,7 @@ def _ld_matrix(
         ("value", value_dtype),
         ("cmp", np.int8),
     ]
-    df = pd.DataFrame(rows, columns=[c[0] for c in cols])
+    df = pandas.DataFrame(rows, columns=[c[0] for c in cols])
     for k, v in dict(cols).items():
         df[k] = df[k].astype(v)
     if scores.shape[0] == 0:

@@ -6,4 +6,5 @@ setup(
     # However, GitHub's dependency graph can't see the package unless we put this here.
     name="sgkit",
     use_scm_version=True,
+    package_data={"sgkit": ["stats/__pycache__/*.nbc"]},
 )

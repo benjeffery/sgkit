@@ -1,6 +1,7 @@
+from __future__ import annotations
+
 from typing import Any, Hashable, Mapping, Tuple
 
-import pandas as pd
 import xarray as xr
 
 
@@ -11,7 +12,7 @@ class GenotypeDisplay:
 
     def __init__(
         self,
-        df: pd.DataFrame,
+        df: pandas.DataFrame,
         shape: Tuple[int, int],
         max_variants: int,
         max_samples: int,
@@ -32,7 +33,10 @@ class GenotypeDisplay:
         ]
 
     def __repr__(self) -> Any:
-        with pd.option_context(*self.pd_options):
+        # Delayed import to reduce sgkit startup time
+        import pandas
+
+        with pandas.option_context(*self.pd_options):
             if (
                 len(self.df) > self.max_variants
                 or len(self.df.columns) > self.max_samples
@@ -44,7 +48,10 @@ class GenotypeDisplay:
             return self.df.__repr__()
 
     def _repr_html_(self) -> Any:
-        with pd.option_context(*self.pd_options):
+        # Delayed import to reduce sgkit startup time
+        import pandas
+
+        with pandas.option_context(*self.pd_options):
             if (
                 len(self.df) > self.max_variants
                 or len(self.df.columns) > self.max_samples
@@ -168,14 +175,17 @@ def display_genotypes(
     A printable object to display genotype information.
     """
 
+    # Delayed import to reduce sgkit startup time
+    import pandas
+
     # Create a copy to avoid clobbering original indexes
     ds_calls = ds.copy()
 
     # Set indexes only if not already set (allows users to have different row/col labels)
     # and if setting them produces a unique index
-    if isinstance(ds_calls.get_index("samples"), pd.RangeIndex):
+    if isinstance(ds_calls.get_index("samples"), pandas.RangeIndex):
         ds_calls = set_index_if_unique(ds_calls, "samples", "sample_id")
-    if isinstance(ds_calls.get_index("variants"), pd.RangeIndex):
+    if isinstance(ds_calls.get_index("variants"), pandas.RangeIndex):
         variant_index = "variant_id" if "variant_id" in ds_calls else "variant_position"
         ds_calls = set_index_if_unique(ds_calls, "variants", variant_index)
 
@@ -194,7 +204,7 @@ def display_genotypes(
     df = ds_abbr.to_dataframe().unstack(level="ploidy")
 
     # Convert each genotype to a string representation
-    def calls_to_str(r: pd.DataFrame) -> str:
+    def calls_to_str(r: pandas.DataFrame) -> str:
         gt = r["call_genotype"].astype(str)
         gt_mask = r["call_genotype_mask"].astype(bool)
         gt[gt_mask] = "."

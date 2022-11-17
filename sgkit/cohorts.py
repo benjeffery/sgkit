@@ -1,7 +1,8 @@
+from __future__ import annotations
+
 from typing import Optional, Sequence, Tuple, Union
 
 import numpy as np
-import pandas as pd
 
 
 def _tuple_len(t: Union[int, Tuple[int, ...], str, Tuple[str, ...]]) -> int:
@@ -13,7 +14,7 @@ def _tuple_len(t: Union[int, Tuple[int, ...], str, Tuple[str, ...]]) -> int:
 
 def _cohorts_to_array(
     cohorts: Sequence[Union[int, Tuple[int, ...], str, Tuple[str, ...]]],
-    index: Optional[pd.Index] = None,
+    index: Optional[pandas.Index] = None,
 ) -> np.ndarray:
     """Convert cohorts or cohort tuples specified as a sequence of values or
     tuples to an array of ints used to match samples in ``sample_cohorts``.
