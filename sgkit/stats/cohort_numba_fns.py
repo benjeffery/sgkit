@@ -43,6 +43,7 @@ def cohort_reduction(gufunc: Callable) -> Callable:
 
     @wraps(gufunc)
     def func(x: ArrayLike, cohort: ArrayLike, n: int, axis: int = -1) -> ArrayLike:
+        n = int(n)
         x = da.swapaxes(da.asarray(x), axis, -1)
         replaced = len(x.shape) - 1
         chunks = x.chunks[0:-1] + (n,)

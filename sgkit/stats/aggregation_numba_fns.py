@@ -42,7 +42,7 @@ def count_alleles(
 
     """
     out[:] = 0
-    n_allele = len(g)
+    n_allele = g.shape[0]
     for i in range(n_allele):
         a = g[i]
         if a >= 0:
@@ -178,6 +178,8 @@ def _index_as_genotype(
     genotype
         Integer alleles of the genotype call.
     """
+    print("WTF", index)
+    index = int(index[0])
     ploidy = len(out)
     remainder = index
     for index in range(ploidy):
