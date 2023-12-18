@@ -1,5 +1,7 @@
 import functools
 import itertools
+import logging
+import os
 import re
 import warnings
 from contextlib import contextmanager
@@ -20,6 +22,7 @@ from typing import (
 import dask
 import fsspec
 import numpy as np
+import psutil
 import xarray as xr
 import zarr
 from cyvcf2 import VCF, Variant
@@ -60,6 +63,8 @@ from sgkit.model import (
 from sgkit.typing import ArrayLike, DType, PathType
 from sgkit.utils import smallest_numpy_int_dtype
 
+logger = logging.getLogger(__name__)
+
 DEFAULT_MAX_ALT_ALLELES = (
     3  # equivalent to DEFAULT_ALT_NUMBER in vcf_read.py in scikit_allel
 )
@@ -82,6 +87,15 @@ RESERVED_VARIABLE_NAMES = [
     "variant_quality",
     "variant_filter",
 ]
+
+
+def print_allocation(name, length, dtype):
+    logger.info(f"{name}: {(np.dtype(dtype).itemsize * length) / (1024 ** 2):.2f} MB")
+
+
+def get_memory_usage():
+    process = psutil.Process(os.getpid())
+    return process.memory_info().rss / (1024 * 1024)  # Return memory usage in MB
 
 
 class FloatFormatFieldWarning(UserWarning):
@@ -240,6 +254,7 @@ class VcfFieldHandler:
             dims.append(dimension)
             chunksize += (size,)
 
+        print_allocation(variable_name, np.prod(chunksize), dtype)
         array = np.full(chunksize, fill_value, dtype=dtype)
 
         return InfoAndFormatFieldHandler(
@@ -362,11 +377,17 @@ class GenotypeFieldHandler(VcfFieldHandler):
         self.truncate_calls = truncate_calls
         self.max_alt_alleles = max_alt_alleles
         self.fill = -2 if self.mixed_ploidy else -1
+        print_allocation(
+            "call_genotype",
+            chunk_length * n_sample * ploidy,
+            smallest_numpy_int_dtype(max_alt_alleles),
+        )
         self.call_genotype = np.full(
             (chunk_length, n_sample, ploidy),
             self.fill,
             dtype=smallest_numpy_int_dtype(max_alt_alleles),
         )
+        print_allocation("call_genotype_phased", chunk_length * n_sample, "bool")
         self.call_genotype_phased = np.full((chunk_length, n_sample), 0, dtype=bool)
 
     def add_variant(self, i: int, variant: Any) -> None:
@@ -432,8 +453,13 @@ def vcf_to_zarr_sequential(
 ) -> None:
     if read_chunk_length is None:
         read_chunk_length = chunk_length
+
+    memory_before = get_memory_usage()
     with open_vcf(input) as vcf:
+        print(f"Opening VCF: {get_memory_usage() - memory_before:.2f} MB")
+        print_allocation("samples", len(vcf.samples), "O")
         sample_id = np.array(vcf.samples, dtype="O")
+
         n_allele = max_alt_alleles + 1
 
         variant_contig_names = vcf.seqnames
@@ -459,7 +485,9 @@ def vcf_to_zarr_sequential(
             variants = vcf(region)
 
         variant_contig_dtype = smallest_numpy_int_dtype(len(variant_contig_names))
+        print_allocation("variant_contig", read_chunk_length, variant_contig_dtype)
         variant_contig = np.empty(read_chunk_length, dtype=variant_contig_dtype)
+        print_allocation("variant_position", read_chunk_length, "i4")
         variant_position = np.empty(read_chunk_length, dtype="i4")
 
         fields = fields or ["FORMAT/GT"]  # default to GT as the only extra field
@@ -488,7 +516,9 @@ def vcf_to_zarr_sequential(
         ):
             variant_ids = []
             variant_alleles = []
+            print_allocation("variant_quality", read_chunk_length, "f4")
             variant_quality = np.empty(read_chunk_length, dtype="f4")
+            print_allocation("variant_filter", read_chunk_length * len(filters), "bool")
             variant_filter = np.full(
                 (read_chunk_length, len(filters)), False, dtype="bool"
             )
@@ -533,12 +563,13 @@ def vcf_to_zarr_sequential(
 
                 for field_handler in field_handlers:
                     field_handler.truncate_array(i + 1)
-
+            print_allocation("variant_id", len(variant_ids), "O")
             variant_id = np.array(variant_ids, dtype="O")
             variant_id_mask = variant_id == "."
             if len(variant_alleles) == 0:
                 variant_allele = np.empty((0, n_allele), dtype="O")
             else:
+                print_allocation("variant_allele", len(variant_alleles), "O")
                 variant_allele = np.array(variant_alleles, dtype="O")
 
             ds: xr.Dataset = create_genotype_call_dataset(
